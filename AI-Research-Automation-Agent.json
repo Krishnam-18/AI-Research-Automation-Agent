@@ -1,0 +1,531 @@
+{
+  "name": "Research agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -208
+      ],
+      "id": "9d2f2634-624d-4ab6-a282-8cece5e2f352",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9d339fef-d4e1-431a-8776-029aaa77250e",
+              "name": "Topic",
+              "value": "Ancient tamilnadu and lifestyle and their kings and tell about their lands varieties",
+              "type": "string"
+            },
+            {
+              "id": "3c15fb8e-934c-49e4-902b-bdef4cd2ac12",
+              "name": "maxResults",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "272af1ce-f932-4998-bd24-f7711ddd537e",
+              "name": "language",
+              "value": "English",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        -208
+      ],
+      "id": "bc94827b-dd11-4333-a6e8-bf986c5029df",
+      "name": "Research Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $('Research Input').first().json.Topic;\n\nreturn [{\n  json: {\n    query: topic\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        -208
+      ],
+      "id": "0ff54001-0467-4f35-bdb8-4b4f3f4d582e",
+      "name": "Build Search Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "include_raw_content",
+              "value": "={{ \"markdown\" }}"
+            },
+            {
+              "name": "max_results",
+              "value": "={{ $json.maxResults || 10 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        -208
+      ],
+      "id": "cf8fb4ca-36b7-40d1-9556-97c96e3c8c8f",
+      "name": "Search Tavily",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "results",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        112,
+        -208
+      ],
+      "id": "89648479-434e-47dd-afbd-08877b30f588",
+      "name": "Split Articles"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a847964b-0200-490a-b22c-6d04fe1d60d1",
+              "leftValue": "={{$json.cleanText.length}}",
+              "rightValue": 1000,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "880239f9-dc4c-47b8-bb91-f054af53381d",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "5989b868-2afc-486c-b27a-7f67600dfc48",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        576,
+        -208
+      ],
+      "id": "b66213bf-446d-43aa-8d1a-c16bee2cb3fa",
+      "name": "Enough Content?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet document = \"\";\n\nitems.forEach((item, index) => {\n\ndocument += `\n\n========================\nARTICLE ${index + 1}\n========================\n\nTITLE:\n${item.json.title}\n\nSOURCE:\n${item.json.url}\n\nCONTENT:\n${item.json.cleanText}\n\n`;\n\n});\n\nreturn [{\njson:{\nresearchDocument: document\n}\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        -16
+      ],
+      "id": "49c5103f-ac0f-43b6-be6a-88846b2eb080",
+      "name": "Build Research Document"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.5-flash-02-23",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        160
+      ],
+      "id": "586bc09a-34bc-4183-bb7f-c0007c13cb94",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "42o8MkjEYPVKxMOT",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "=define",
+        "text": "=You are an expert research analyst.\n\nAnalyze the research below:\n{{ $json.researchDocument }}\n\nReturn your answer using exactly this format:\n# Executive Summary\n# Key Insights\n# Important Statistics\n# Trends\n# Risks\n# Opportunities\n# Final Conclusion\n### OUTPUT FORMATTING RULES:\n1. Use markdown bullet points (`- `) for all key takeaways and item lists.\n2. Make every subtopic heading bold using double asterisks (e.g., **Subtopic Heading**).\n3. Insert two empty lines (`\\n\\n`) between distinct subtopics/sections for clear separation.\n4. Keep paragraph line spacing tight and concise.",
+        "messages": {
+          "messageValues": []
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -208,
+        -16
+      ],
+      "id": "998d7c6f-72f8-45ae-95fc-8a247dc7cfdb",
+      "name": "Basic LLM Chain",
+      "retryOnFail": true,
+      "waitBetweenTries": 3000,
+      "notesInFlow": false,
+      "executeOnce": false,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e78d072-0cd7-4453-a571-da01a77c4370",
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        -16
+      ],
+      "id": "322da003-015c-4acb-941b-6ba2e110ba27",
+      "name": "AI Success?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $json.text || \"\";\n\n// 1. Extract only the content after the last \"# Executive Summary\" (if present)\nlet cleanedText = rawText;\nif (rawText.includes(\"# Executive Summary\")) {\n  const parts = rawText.split(\"# Executive Summary\");\n  cleanedText = \"# Executive Summary\" + parts[parts.length - 1];\n}\n\ncleanedText = cleanedText\n  // Convert Markdown headers (# Header) into bold titles with a line break\n  .replace(/^#+\\s*(.*)$/gm, '**$1**\\n')\n  \n  // Standardize bullet points (* or -) to clean bullet symbols\n  .replace(/^[\\s]*[\\*\\-]\\s+/gm, '• ')\n\n  // Ensure double line breaks between paragraphs and sections\n  .replace(/\\n{2,}/g, '\\n\\n');\n\nreturn [{\n  json: {\n    report: cleanedText.trim()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -32
+      ],
+      "id": "cf481329-f6e6-4f2e-9d18-741a7308b73c",
+      "name": "Extract AI Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst unique = [];\n\nfor (const item of $input.all()) {\n  const url = (item.json.url || '').toLowerCase().trim();\n  const title = (item.json.title || '').toLowerCase().trim();\n  \n  const key = `${url}|${title}`;\n\n  if (!seen.has(key)) {\n    seen.add(key);\n    unique.push(item);\n  }\n}\n\nreturn unique;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        -16
+      ],
+      "id": "27224055-2c9c-45bf-a13d-98849f4e07f2",
+      "name": "Remove Duplicate Articles"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  let raw = String(item.json.raw_content || item.json.content || \"\");\n\n  // 1. Remove Markdown images explicitly (e.g., ![alt](url))\n  raw = raw.replace(/!\\[.*?\\]\\(.*?\\)/g, \"\");\n\n  // 2. Extract link text, strip URL (e.g., [text](url) -> text)\n  raw = raw.replace(/\\[([^\\]]+)\\]\\([^)]+\\)/g, \"$1\");\n\n  // 3. Remove common boilerplate\n  raw = raw.replace(\n    /(Advertisement|Subscribe|Cookie Policy|Privacy Policy|Terms of Service|Continue browsing|Take the next step|Need help getting started|Work with a trusted partner|Facebook|Twitter|LinkedIn|Instagram|Sign In|Register)/gi,\n    \"\"\n  );\n\n  // 4. Collapse consecutive spaces/tabs per line (preserves line breaks)\n  raw = raw.replace(/[^\\S\\r\\n]+/g, \" \");\n\n  // 5. Clean up multiple empty lines and trim spaces around lines\n  raw = raw.replace(/\\n\\s*\\n+/g, \"\\n\").trim();\n\n  return {\n    json: {\n      ...item.json,\n      cleanText: raw\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -208
+      ],
+      "id": "94f493b5-8a48-41c6-87c5-b87725a1470f",
+      "name": "Clean Text"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "https://docs.google.com/document/d/1Dag88UcojntTDssC68oAgVIdA-wiXEixQ1MJ4-ncq6M/edit?tab=t.0",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $json.cleanText }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        752,
+        -192
+      ],
+      "id": "d54242b7-1c94-4198-aa2d-6ce1d38f3917",
+      "name": "Update a document",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "4yoJthLMW65MPhmB",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "https://docs.google.com/document/d/1aK2yT95UpyMTbjYU_oknm43VErVAS0ShZ-NANcMNBTo/edit?tab=t.0",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $json.report }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -32
+      ],
+      "id": "925a8796-e226-489c-841e-3d688ad5eb31",
+      "name": "Output",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "4yoJthLMW65MPhmB",
+          "name": "Google Docs account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Research Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Input": {
+      "main": [
+        [
+          {
+            "node": "Build Search Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Query": {
+      "main": [
+        [
+          {
+            "node": "Search Tavily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Tavily": {
+      "main": [
+        [
+          {
+            "node": "Split Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Articles": {
+      "main": [
+        [
+          {
+            "node": "Clean Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enough Content?": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicate Articles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update a document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Research Document": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "AI Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Success?": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract AI Response": {
+      "main": [
+        [
+          {
+            "node": "Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicate Articles": {
+      "main": [
+        [
+          {
+            "node": "Build Research Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Text": {
+      "main": [
+        [
+          {
+            "node": "Enough Content?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "61ec89e2-87c7-4bcb-a041-60ce4b2d13fb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0b91276bbd1d5ea21b9e87d7e3e03ca2689719b64e3b8cf77921a21c6a9cc8d5"
+  },
+  "nodeGroups": [],
+  "id": "VlfupTpHGJShfcCJ",
+  "tags": []
+}
